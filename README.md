@@ -12,9 +12,7 @@ This repo includes 4 implementations of linear solver based on conjugate gradien
 
 Preconditioner is the matrix with diagonal's elements of matrix A.
 
-## Theory
-
-Matrix A is sparse, symmetrix, positive-definite matrix. Presented in code in [CSR format](https://en.wikipedia.org/wiki/Sparse_matrix) and vector of diagonal elements. Vector x vector of unknowns. Vector b is vector with constant terms.
+Matrix A is presented in code in [CSR format](https://en.wikipedia.org/wiki/Sparse_matrix) and vector of diagonal elements. Vector x vector of unknowns. Vector b is vector with constant terms.
 
 ## Project
 
