@@ -12,9 +12,9 @@ This repo includes 4 implementations of linear solver based on conjugate gradien
 
 Preconditioner is the matrix with diagonal's elements of matrix A.
 
-Matrix A is presented in code in [CSR format](https://en.wikipedia.org/wiki/Sparse_matrix) and vector of diagonal elements. Vector x vector of unknowns. Vector b is vector with constant terms.
+Matrix A is presented in code in [CSR format](https://en.wikipedia.org/wiki/Sparse_matrix) and vector of diagonal elements. Vector x is vector of unknowns. Vector b is vector with constant terms.
 
 ## Project
 
-Project consists of 2 parts: starter(.exe) and solver(.dll). Starter parses matrix from .mtx file, fills vector b one and send all this data to solver. As source of matrixes you can use [this one](https://sparse.tamu.edu).
+Project consists of 2 parts: starter(.exe) and solver(.dll). Starter parses matrix from .mtx file, fills vector b one and sends all this data to solver. You can take matrixes [here](https://sparse.tamu.edu).
 
