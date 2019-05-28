@@ -1,13 +1,5 @@
 #pragma once
 
-using namespace std;
-
-#define CHECKER false
-#define DEBUGGER false
-#define HARDCODE false
-#define FILE_CHECK false
-#define TIMER true
-
 #ifdef _MSC_VER // Visual Studio specific macro
 #ifdef BUILDING_DLL
 #define DLLEXPORT __declspec(dllexport)
@@ -20,12 +12,12 @@ using namespace std;
 #define DLLLOCAL   __attribute__ ((visibility("hidden")))
 #endif 
 
-class gpu_solver {
+class SolverGPU {
 
 public:
 
-	DLLEXPORT double* GPU_CG(double *val, int *col, int *row, double *right, double *diag, int non_zero, int size); //Conjugate gradient method
-	DLLEXPORT double* GPU_PCG(double *val, int *col, int *row, double *right, double *diag, int non_zero, int size); //Preconditioned conjugate gradient method
-	DLLEXPORT double* GPU_BiCGSTAB(double *val, int *col, int *row, double *right, double *diag, int non_zero, int size); //Biconjugate gradient stabilized method
-	DLLEXPORT double* GPU_PBiCGSTAB(double *val, int *col, int *row, double *right, double *diag, int non_zero, int size); //Preconditioned biconjugate gradient stabilized method
+	DLLEXPORT double* conjugateGradientMethod(const double *val, const int *col, const int *row, const double *right, const double *diag, const int non_zero, const int size); //Conjugate gradient method
+	DLLEXPORT double* preConjugateGradientMethod(const double *val, const int *col, const int *row, const double *right, const double *diag, const int non_zero, const int size); //Preconditioned conjugate gradient method
+	DLLEXPORT double* biconjugateStabGradientMethod(const double *val, const int *col, const int *row, const double *right, const double *diag, const int non_zero, const int size); //Biconjugate gradient stabilized method
+	DLLEXPORT double* preBiconjugateStabGradientMethod(const double *val, const int *col, const int *row, const double *right, const double *diag, const int non_zero, const int size); //Preconditioned biconjugate gradient stabilized method
 };

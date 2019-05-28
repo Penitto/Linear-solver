@@ -16,33 +16,208 @@
 #include "GPU.h"
 
 using namespace std;
+#define THR 2
+#define CHECKER false
+#define DEBUGGER false
+#define HARDCODE false
+#define FILE_CHECK false
+#define TIMER true
+
+void Multiplicate(int size, int nnz, double* val, int* row, int* col, vector<double>& x, vector<double>& res)
+{
+	vector<double> b(size, 0.0);
+	//#pragma omp parallel for num_threads(thr)
+	for (int i = 0; i < size; i++)
+	{
+		for (int j = row[i]; j < row[i + 1]; j++)
+			b[i] += val[j] * x[col[j]];
+	}
+	res = b;
+}
+
+double scPl(vector<double>& v1, vector<double>&v2)
+{
+	double res = 0;
+	//#pragma omp parallel for num_threads(THR) reduction(+:res)
+	for (int i = 0; i < v1.size(); i++)
+	{
+		res += v1[i] * v2[i];
+	}
+	return res;
+}
+
+void sumV(vector<double>& v1, vector<double>&v2, vector<double>& res)
+{
+	//#pragma omp parallel for num_threads(THR)
+	for (int i = 0; i < v1.size(); i++)
+	{
+		res[i] = v1[i] + v2[i];
+	}
+}
+
+void subV(vector<double>& v1, vector<double>&v2, vector<double>& res)
+{
+	//#pragma omp parallel for num_threads(THR)
+	for (int i = 0; i < v1.size(); i++)
+	{
+		res[i] = v1[i] - v2[i];
+	}
+}
+
+void prV(vector<double>& v1, double num, vector<double>& res)
+{
+	//#pragma omp parallel for num_threads(THR)
+	for (int i = 0; i < v1.size(); i++)
+	{
+		res[i] = num * v1[i];
+	}
+}
+
+void prV(vector<double>& v1, vector<double>& v2, vector<double>& res)
+{
+	//#pragma omp parallel for num_threads(THR)
+	for (int i = 0; i < v1.size(); i++)
+	{
+		res[i] = v2[i] * v1[i];
+	}
+}
+
+void prV(vector<double>& v1, double* v2, vector<double>& res)
+{
+	//#pragma omp parallel for num_threads(THR)
+	for (int i = 0; i < v1.size(); i++)
+	{
+		res[i] = v2[i] * v1[i];
+	}
+}
+
+void rDiag(double* diag, int size, vector<double>& res)
+{
+	for (int i = 0; i < size; i++)
+	{
+		res[i] = 1 / diag[i];
+	}
+}
+
+double* CPU(double *val, int *col, int *row, double *right, double *diag, int non_zero, int size)
+{
+	int max = 50000;
+	int step = 0;
+	bool flag = false;
+	double acc = 1e-10;
+	vector<double> r0;
+	r0.assign(right, right + size);
+	double alpha = 1, omega0 = 1, rho0 = 1;
+	vector<double> rT(r0), nu0(size, 0.0), p0(size, 0.0),
+		x0(size, 0.0), pK(size, 0.0), y(size, 0.0),
+		nuK(size, 0.0), h(size, 0.0), z(size, 0.0),
+		t(size, 0.0), xK(size, 0.0), rK(size, 0.0),
+		s(size, 0.0), temp(size, 0.0), temp1(size, 0.0);
+	double beta, omegaK, rhoK;
+	double minus = -1;
+
+	do {
+
+		if (flag)
+		{
+			rho0 = rhoK;
+			omega0 = omegaK;
+			x0 = xK;
+			nu0 = nuK;
+			p0 = pK;
+			r0 = rK;
+		}
+
+		rhoK = scPl(rT, r0);
+
+		beta = (rhoK / rho0)*(alpha / omega0);
+
+		prV(nu0, omega0, temp);
+		subV(p0, temp, temp);
+		prV(temp, beta, temp);
+		sumV(r0, temp, pK);
+
+		rDiag(diag, size, temp);
+		prV(pK, temp, y);
+
+		Multiplicate(size, non_zero, val, row, col, y, nuK);
+		prV(y, diag, temp);
+		sumV(nuK, temp, nuK);
+
+		alpha = rhoK / scPl(rT, nuK);
+
+		prV(y, alpha, temp);
+		sumV(x0, temp, h);
+
+		prV(nuK, alpha, temp);
+		subV(r0, temp, s);
+
+		rDiag(diag, size, temp);
+		prV(s, temp, z);
+
+		Multiplicate(size, non_zero, val, row, col, z, t);
+		prV(z, diag, temp);
+		sumV(t, temp, t);
+
+		rDiag(diag, size, temp);
+		prV(t, temp, temp1);
+		prV(s, temp, temp);
+		omegaK = scPl(temp, temp1)
+			/ scPl(temp1, temp1);
+
+		prV(z, omegaK, temp);
+		sumV(h, temp, xK);
+
+		prV(t, omegaK, temp);
+		subV(s, temp, rK);
+
+		if (sqrt(scPl(rK, rK)) < acc)
+			break;
+
+		if (step % 20 == 0)
+		{
+			cout << "res: " << sqrt(scPl(rK, rK)) << endl;
+		}
+		step++;
+		flag = true;
+
+	} while (step < max);
+
+	double* res = new double[size];
+	for (int i = 0; i < xK.size(); i++)
+	{
+		res[i] = xK[i];
+	}
+
+	return res;
+}
 
 double* GPU_solve1(double *val, int *col, int *row, double *right, double *diag, int non_zero, int size)
 {
-	gpu_solver obj;
+	SolverGPU obj;
 
-	return obj.GPU_CG(val, col, row, right, diag, non_zero, size);
+	return obj.conjugateGradientMethod(val, col, row, right, diag, non_zero, size);
 }
 
 double* GPU_solve2(double *val, int *col, int *row, double *right, double *diag, int non_zero, int size)
 {
-	gpu_solver obj;
+	SolverGPU obj;
 
-	return obj.GPU_BiCGSTAB(val, col, row, right, diag, non_zero, size);
+	return obj.biconjugateStabGradientMethod(val, col, row, right, diag, non_zero, size);
 }
 
 double* GPU_solve3(double *val, int *col, int *row, double *right, double *diag, int non_zero, int size)
 {
-	gpu_solver obj;
+	SolverGPU obj;
 
-	return obj.GPU_PCG(val, col, row, right, diag, non_zero, size);
+	return obj.preConjugateGradientMethod(val, col, row, right, diag, non_zero, size);
 }
 
 double* GPU_solve4(double *val, int *col, int *row, double *right, double *diag, int non_zero, int size)
 {
-	gpu_solver obj;
+	SolverGPU obj;
 
-	return obj.GPU_PBiCGSTAB(val, col, row, right, diag, non_zero, size);
+	return obj.preBiconjugateStabGradientMethod(val, col, row, right, diag, non_zero, size);
 }
 
 int main(int argc, char *argv[])
@@ -53,53 +228,9 @@ int main(int argc, char *argv[])
 	double *val;
 	int *col;
 	int *row;
-#if !HARDCODE
-	loadMMSparseMatrix("../../Mtx/lap2D_5pt_n100.mtx", 'd', true, &m, &n, &nnz, &val, &row, &col);
-#else
-	m = 10;
-	n = 10;
-	nnz = 12;
-	val = new double[nnz];
-	col = new int[nnz];
-	row = new int[m + 1];
-	val[0] = 1;
-	val[1] = 2;
-	val[2] = 3;
-	val[3] = 4;
-	val[4] = 5;
-	val[5] = 6;
-	val[6] = 6;
-	val[7] = 5;
-	val[8] = 4;
-	val[9] = 1;
-	val[10] = 2;
-	val[11] = 3;
-	col[0] = 9;
-	col[1] = 9;
-	col[2] = 9;
-	col[3] = 8;
-	col[4] = 7;
-	col[5] = 6;
-	col[6] = 5;
-	col[7] = 4;
-	col[8] = 3;
-	col[9] = 0;
-	col[10] = 1;
-	col[11] = 2;
-	for (int i = 0; i < m; i++)
-	{
-		row[i] = i;
-	}
-	row[m] = nnz;
-#endif
 
-#if FILE_CHECK
-	cout << "File data: \n";
-	for (int i = 0; i < nnz; i++)
-	{
-		cout << val[i] << " " << col[i] << " " << row[i] << endl;
-	}
-#endif
+	loadMMSparseMatrix("lap2D_5pt_n100.mtx", 'd', true, &m, &n, &nnz, &val, &row, &col);
+
 	double* diag = new double[n];
 	double* right = new double[n];
 	double* sol = new double[n];
@@ -120,7 +251,7 @@ int main(int argc, char *argv[])
 		}
 
 	}
-#if !HARDCODE
+
 	for (int i = 0; i < n; i++)
 	{
 		int k = row[i]; //  
@@ -132,25 +263,6 @@ int main(int argc, char *argv[])
 		diag[i] = val[k + r];
 		val[k + r] = 0;
 	}
-#else
-	for (int i = 0; i < m; i++)
-	{
-		diag[i] = i + 1;
-	}
-#endif
-#if FILE_CHECK
-	cout << "After transform\n";
-	for (int i = 0; i < nnz; i++)
-	{
-		cout << val[i] << " " << col[i] << " " << row[i] << endl;
-	}
-
-	cout << "Diag:\n";
-	for (int i = 0; i < n; i++)
-	{
-		cout << diag[i] << " ";
-	}
-#endif
 
 	//Testing CG
 	cout << endl << "Testing CG" << endl;
@@ -159,15 +271,6 @@ int main(int argc, char *argv[])
 	clock_t int2 = clock();
 #if TIMER
 	cout << "TIME: " << double(int2 - int1) / 1000.0 << endl;
-#endif
-
-#if CHECKER
-	cout << "Solution: " << endl;
-	for (int i = 0; i < n; i++)
-	{
-		cout << sol[i] << " ";
-	}
-	cout << endl;
 #endif
 	cout << "Solution: " << sol[0] << " " << sol[1] << " " << sol[2] << " " << sol[3] << " " << sol[4] << " " << sol[5] << " " << sol[6] << endl;
 
@@ -179,14 +282,6 @@ int main(int argc, char *argv[])
 #if TIMER
 	cout << "TIME: " << double(int6 - int5) / 1000.0 << endl;
 #endif
-#if CHECKER
-	cout << "Solution: " << endl;
-	for (int i = 0; i < n; i++)
-	{
-		cout << sol[i] << " ";
-	}
-	cout << endl;
-#endif
 	cout << "Solution: " << sol[0] << " " << sol[1] << " " << sol[2] << " " << sol[3] << " " << sol[4] << " " << sol[5] << " " << sol[6] << endl;
 
 	//Testing BiCGSTAB
@@ -196,14 +291,6 @@ int main(int argc, char *argv[])
 	clock_t int4 = clock();
 #if TIMER
 	cout << "TIME: " << double(int4 - int3) / 1000.0 << endl;
-#endif
-#if CHECKER
-	cout << "Solution: " << endl;
-	for (int i = 0; i < n; i++)
-	{
-		cout << sol[i] << " ";
-	}
-	cout << endl;
 #endif
 	cout << "Solution: " << sol[0] << " " << sol[1] << " " << sol[2] << " " << sol[3] << " " << sol[4] << " " << sol[5] << " " << sol[6] << endl;
 
@@ -215,14 +302,14 @@ int main(int argc, char *argv[])
 #if TIMER
 	cout << "TIME: " << double(int8 - int7) / 1000.0 << endl;
 #endif
-#if CHECKER
-	cout << "Solution: " << endl;
-	for (int i = 0; i < n; i++)
-	{
-		cout << sol[i] << " ";
-	}
-	cout << endl;
-#endif
+	cout << "Solution: " << sol[0] << " " << sol[1] << " " << sol[2] << " " << sol[3] << " " << sol[4] << " " << sol[5] << " " << sol[6] << endl;
+
+	//Testing CPU
+	cout << endl << "Testing CPU" << endl;
+	clock_t int9 = clock();
+	sol = CPU(val, col, row, right, diag, nnz, n);
+	clock_t int10 = clock();
+	cout << "TIME: " << float(int10 - int9) / CLOCKS_PER_SEC << endl;
 	cout << "Solution: " << sol[0] << " " << sol[1] << " " << sol[2] << " " << sol[3] << " " << sol[4] << " " << sol[5] << " " << sol[6] << endl;
 
 	system("pause");
